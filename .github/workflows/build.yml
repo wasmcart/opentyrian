@@ -102,8 +102,20 @@ jobs:
         with:
           name: "OpenTyrian ${{ github.ref_name }}"
           body: |
-            OpenTyrian wasmcart cart (.wasc).
+            OpenTyrian as a wasmcart cart: one `.wasc` that runs on any conforming
+            host -- browser, Node, the native player, or a libretro core in
+            RetroArch.
 
-            Runs on all wasmcart hosts: browser, Node.js, wasmcart-native, and RetroArch.
-            ES 3.0 renderer — no GL translation layers needed.
+            Playable as downloaded. Tyrian's data files were released as freeware
+            by the publisher, so nothing else is needed.
+
+            - 320x200 software rendering, the original's exact pixels
+            - Gamepad controls (d-pad/stick to move, A to fire)
+            - Config and progress persist through the cart save region
+            - Two-player multiplayer over the `wc_peer_*` transport, where the
+              host provides peers
+
+            ```sh
+            npx wasmcart opentyrian.wasc
+            ```
           files: ${{ env.WASC_PATH }}
