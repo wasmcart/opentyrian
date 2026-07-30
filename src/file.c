@@ -68,6 +68,56 @@ const char *data_dir(void)
 }
 
 // prepend directory and fopen
+#ifdef WASM_CART
+/*
+ * Cart builds have no filesystem: the game data lives in the .wasc and is read
+ * through wc_load_asset(). Shimming here rather than at every call site works
+ * because all three dir_fopen_* variants and dir_file_exists() funnel through
+ * this one function -- so the ~300 stdio calls in the rest of the game are
+ * untouched and keep working on a normal FILE*.
+ *
+ * The asset is loaded whole into memory and wrapped with fmemopen(), which
+ * emscripten does support. Tyrian's largest asset is a few hundred KB, so
+ * whole-file loading is simpler than a streaming shim and costs little.
+ *
+ * WRITES are deliberately not supported. The game tries to save tyrian.cfg and
+ * tyrian.sav; those return NULL, the game warns and carries on. Persisting them
+ * belongs in the cart's save region (wc_info_t.save_ptr), which is a separate
+ * piece of work -- see the README.
+ */
+#include "wasmcart.h"
+
+FILE *dir_fopen(const char *dir, const char *file, const char *mode)
+{
+	(void)dir;   /* the asset archive is flat; dir is always the data dir */
+
+	if (strchr(mode, 'w') != NULL || strchr(mode, 'a') != NULL ||
+	    strchr(mode, '+') != NULL)
+		return NULL;   /* read-only; caller warns and continues */
+
+	const int32_t size = wc_asset_size(file, strlen(file));
+	if (size <= 0)
+		return NULL;
+
+	/* fmemopen takes ownership of nothing, so this buffer must outlive the
+	 * FILE*. Leaked on purpose: the game opens each data file a handful of
+	 * times over a session and there is no fclose hook to free it from. */
+	uint8_t *buf = malloc((size_t)size);
+	if (buf == NULL)
+		return NULL;
+
+	if (wc_load_asset(file, strlen(file), buf, (uint32_t)size) != size)
+	{
+		free(buf);
+		return NULL;
+	}
+
+	FILE *f = fmemopen(buf, (size_t)size, "rb");
+	if (f == NULL)
+		free(buf);
+	return f;
+}
+#else
 FILE *dir_fopen(const char *dir, const char *file, const char *mode)
 {
 	char *path = malloc(strlen(dir) + 1 + strlen(file) + 1);
@@ -79,6 +129,7 @@ FILE *dir_fopen(const char *dir, const char *file, const char *mode)
 
 	return f;
 }
+#endif
 
 // warn when dir_fopen fails
 FILE *dir_fopen_warn(const char *dir, const char *file, const char *mode)

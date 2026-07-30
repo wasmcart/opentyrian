@@ -34,6 +34,13 @@ Palette palettes[PALETTE_COUNT];
 int palette_count;
 
 static Palette palette;
+
+#ifdef WASM_CART
+/* The cart converts the paletted surface itself, so it needs the live palette.
+ * `palette` is static and stays that way; this is a read-only accessor rather
+ * than widening its scope. */
+const SDL_Color *wasmcart_live_palette(void) { return palette; }
+#endif
 Uint32 rgb_palette[256], yuv_palette[256];
 
 Palette colors;

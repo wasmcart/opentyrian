@@ -746,7 +746,13 @@ void setupMenu(void)
 	}
 }
 
+#ifdef WASM_CART
+/* Renamed for the cart build: wc_render() calls this on the first frame instead
+ * of the runtime calling main(). Everything inside is unchanged. */
+int opentyrian_main(int argc, char *argv[])
+#else
 int main(int argc, char *argv[])
+#endif
 {
 	mt_srand(time(NULL));
 

@@ -313,7 +313,19 @@ void JE_clr256(SDL_Surface *screen)
 
 void JE_showVGA(void) 
 { 
+#ifdef WASM_CART
+	/* The single frame boundary. All 79 draw sites reach the screen through
+	 * here, so the cart intercepts this one function instead of restructuring
+	 * the game loop. wasmcart_present() converts the surface and yields; we
+	 * resume inside it on the next wc_render(). */
+	extern const SDL_Color *wasmcart_live_palette(void);
+	extern void wasmcart_present(const uint8_t *pixels, int pitch,
+	                             const SDL_Color *palette);
+	wasmcart_present((const uint8_t *)VGAScreen->pixels, VGAScreen->pitch,
+	                 wasmcart_live_palette());
+#else
 	scale_and_flip(VGAScreen); 
+#endif
 }
 
 static void calc_dst_render_rect(SDL_Surface *const src_surface, SDL_Rect *const dst_rect)
