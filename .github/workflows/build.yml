@@ -43,7 +43,14 @@ jobs:
       - name: Build the wasmcart SDL2 backend
         run: |
           git clone --depth 1 https://github.com/wasmcart/wasmcart-sdl2.git ../wasmcart-sdl2
-          EMSDK=~/emsdk bash ../wasmcart-sdl2/sdl2_wc/build_sdl2_wc.sh
+          # Populate emscripten's port cache first. The backend build needs the
+          # SDL2 SOURCE tree, and on a fresh runner the cache is empty -- its own
+          # trigger-compile swallows errors, so failing here instead gives a
+          # readable message.
+          embuilder build sdl2
+          ls -d "$EMSDK/upstream/emscripten/cache/ports/sdl2/"*/ || {
+            echo "::error::SDL2 port cache still empty after embuilder"; exit 1; }
+          EMSDK="$EMSDK" bash ../wasmcart-sdl2/sdl2_wc/build_sdl2_wc.sh
 
       - name: Build
         run: |
