@@ -9,7 +9,10 @@ on:
 env:
   # Pinned: emscripten changes codegen between versions, and a game that built
   # last month should still build today.
-  EMSDK_VERSION: 4.0.3
+  # Must match the SDL2 release that wasmcart-sdl2's build script expects
+  # (SDL-release-2.32.8, hardcoded there). emsdk 4.0.3 ships SDL 2.30.9, so the
+  # backend build cannot find its source tree and fails.
+  EMSDK_VERSION: 4.0.18
 
 jobs:
   build-wasc:
