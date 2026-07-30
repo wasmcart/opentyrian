@@ -633,6 +633,12 @@ void JE_setNewGameSpeed(void)
 
 const char *get_user_directory(void)
 {
+#ifdef WASM_CART
+	/* A cart has no user directory. This sentinel is how dir_fopen() in file.c
+	 * tells a SAVE file (config, progress) from a shipped DATA file: saves go to
+	 * the wasmcart save region, data comes from the read-only asset archive. */
+	return WASMCART_SAVE_DIR;
+#else
 	static char user_dir[500] = "";
 	
 	if (strlen(user_dir) == 0)
@@ -661,6 +667,7 @@ const char *get_user_directory(void)
 	}
 	
 	return user_dir;
+#endif
 }
 
 void loadConfiguration(void)

@@ -38,11 +38,28 @@ if [ ! -f "$ASSETS/tyrian1.lvl" ]; then
     exit 1
 fi
 
+# WASMCART_WS grants the cart WebSocket access to a relay domain, which is what
+# makes wc_peer_open() succeed for network play. It is NOT set for the shipped
+# cart on purpose: which relay to trust is the host's or player's call, not
+# something a game should bake in. Pass it to build a cart for a relay you run:
+#
+#   WASMCART_WS=127.0.0.1:8787 bash pack.sh
+#
+# Without it the cart still declares WC_FLAG_NET_PEER, so a host that supplies
+# peers itself (addPeer) can still do multiplayer -- host-supplied peers need no
+# grant. See docs/networking.md in the wasmcart repo.
+WS_ARGS=()
+if [ -n "${WASMCART_WS:-}" ]; then
+    WS_ARGS=(--ws "$WASMCART_WS")
+    echo "Granting WebSocket access to $WASMCART_WS"
+fi
+
 echo "Packing cart..."
 npx --yes --package=wasmcart wasmcart-pack \
     --wasm "$WASM" \
     --assets "$ASSETS" \
     --name "OpenTyrian" \
+    "${WS_ARGS[@]}" \
     -o "$OUT/opentyrian.wasc"
 
 ls -la "$OUT/opentyrian.wasc"

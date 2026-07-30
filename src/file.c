@@ -80,20 +80,39 @@ const char *data_dir(void)
  * emscripten does support. Tyrian's largest asset is a few hundred KB, so
  * whole-file loading is simpler than a streaming shim and costs little.
  *
- * WRITES are deliberately not supported. The game tries to save tyrian.cfg and
- * tyrian.sav; those return NULL, the game warns and carries on. Persisting them
- * belongs in the cart's save region (wc_info_t.save_ptr), which is a separate
- * piece of work -- see the README.
+ * WRITES go to the cart's save region rather than failing. get_user_directory()
+ * returns a sentinel in cart builds (see config.c), so this function can tell a
+ * save file -- tyrian.cfg, tyrian.sav, opentyrian.cfg -- from a shipped data file
+ * and route it to wc_savefs (wasmcart-sdl2's named-file layer over save_ptr).
+ * Shipped assets stay read-only: a write to one returns NULL and the game warns
+ * and carries on, which is what it already does on a read-only install.
  */
 #include "wasmcart.h"
 
+/* This file compiles the save filesystem; wasmcart_cart.c includes the header
+ * normally and shares it. Exactly one TU may define this -- see the header. */
+#define WC_SAVEFS_IMPLEMENTATION
+#include "wc_sdl_savefs.h"
+
+/* Save-region backing store. Declared in wc_get_info() as save_ptr/save_size, so
+ * the host loads it before wc_init() and persists it afterwards. */
+uint8_t wasmcart_save_blob[WC_SAVEFS_BYTES];
+
+/* The fclose() the rest of the game calls (see wasmcart_config.h). The header
+ * above already #undef'd the macro, so this reaches the real wc_savefs_fclose. */
+int wasmcart_fclose(FILE *fp) { return wc_savefs_fclose(fp); }
+
 FILE *dir_fopen(const char *dir, const char *file, const char *mode)
 {
-	(void)dir;   /* the asset archive is flat; dir is always the data dir */
+	/* Two different worlds behind one function. get_user_directory() returns a
+	 * sentinel in cart builds, so config and progress go to the save region
+	 * (read AND write), while everything else is a shipped asset (read only). */
+	if (dir != NULL && strcmp(dir, WASMCART_SAVE_DIR) == 0)
+		return wc_savefs_fopen(file, mode);
 
 	if (strchr(mode, 'w') != NULL || strchr(mode, 'a') != NULL ||
 	    strchr(mode, '+') != NULL)
-		return NULL;   /* read-only; caller warns and continues */
+		return NULL;   /* assets are read-only; caller warns and continues */
 
 	const int32_t size = wc_asset_size(file, strlen(file));
 	if (size <= 0)

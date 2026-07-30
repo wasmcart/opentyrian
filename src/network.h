@@ -23,7 +23,14 @@
 
 #include "SDL.h"
 #ifdef WITH_NETWORK
-#	include "SDL_net.h"
+#	ifdef WASM_CART
+/* A cart has no sockets. wc_sdl_net.h implements the SDL_net UDP calls this game
+ * uses on top of wasmcart's peer transport, so the netcode below is untouched.
+ * See that header for what maps and what cannot (peer discovery). */
+#		include "wc_sdl_net.h"
+#	else
+#		include "SDL_net.h"
+#	endif
 #endif
 
 #define PACKET_ACKNOWLEDGE   0x00    // 

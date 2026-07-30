@@ -202,6 +202,13 @@ int network_check(void)
 	if (!net_initialized)
 		return -1;
 
+#ifdef WASM_CART
+	/* Move host-delivered peer messages into the receive queue before the poll
+	 * below looks for packets. This is the game's own poll point, so it is the
+	 * right place -- no extra call site anywhere else. */
+	wc_net_pump();
+#endif
+
 	if (connected)
 	{
 		// timeout
