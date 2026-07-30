@@ -32,6 +32,9 @@ jobs:
           . ./emsdk_env.sh
           echo "$EMSDK/upstream/emscripten" >> "$GITHUB_PATH"
           echo "$EMSDK" >> "$GITHUB_PATH"
+          # Export the VARIABLE too, not just PATH: later steps reference
+          # $EMSDK to find the port cache, and GITHUB_PATH does not carry it.
+          echo "EMSDK=$EMSDK" >> "$GITHUB_ENV"
 
       - name: Show Emscripten version
         run: emcc --version | head -1
