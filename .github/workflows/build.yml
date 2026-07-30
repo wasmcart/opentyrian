@@ -1,0 +1,95 @@
+name: Build wasmcart cart
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+env:
+  # Pinned: emscripten changes codegen between versions, and a game that built
+  # last month should still build today.
+  EMSDK_VERSION: 4.0.3
+
+jobs:
+  build-wasc:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      # Installed directly from upstream rather than via a third-party action.
+      # mymindstorm/setup-emsdk@v14 targets Node 20, which GitHub deprecated, so
+      # every run printed a deprecation warning -- and a warning nobody can fix
+      # from here trains people to ignore warnings. This is a git clone and one
+      # script; it has no such dependency, and it pins the emsdk version.
+      - name: Install Emscripten
+        run: |
+          git clone --depth 1 https://github.com/emscripten-core/emsdk.git ~/emsdk
+          cd ~/emsdk
+          ./emsdk install ${{ env.EMSDK_VERSION }}
+          ./emsdk activate ${{ env.EMSDK_VERSION }}
+          # Put emcc/em++ on PATH for every later step in this job.
+          . ./emsdk_env.sh
+          echo "$EMSDK/upstream/emscripten" >> "$GITHUB_PATH"
+          echo "$EMSDK" >> "$GITHUB_PATH"
+
+      - name: Show Emscripten version
+        run: emcc --version | head -1
+
+      # The cart links libSDL2_wc.a: SDL2 with wasmcart video/audio/joystick
+      # backends. It is not committed anywhere (it is toolchain-specific -- built
+      # against a specific emsdk's SDL port), so build it here from the pinned
+      # emsdk above.
+      - name: Build the wasmcart SDL2 backend
+        run: |
+          git clone --depth 1 https://github.com/wasmcart/wasmcart-sdl2.git ../wasmcart-sdl2
+          EMSDK=~/emsdk bash ../wasmcart-sdl2/sdl2_wc/build_sdl2_wc.sh
+
+      - name: Build
+        run: |
+          chmod +x build.sh pack.sh
+          bash build.sh
+
+      - name: Pack
+        run: bash pack.sh
+
+      - name: Upload .wasc artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: opentyrian
+          path: build/opentyrian.wasc
+
+  release:
+    needs: build-wasc
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+
+      # v0.1.0 shipped with no attached .wasc: the release glob assumed
+      # artifacts/<name>/ and did not match, and action-gh-release treats "no
+      # files matched" as a warning rather than an error -- so the run went green
+      # with an empty release. List the tree and fail loudly instead.
+      - name: Locate the packed cart
+        run: |
+          find artifacts -type f -print
+          wasc="$(find artifacts -name '*.wasc' -type f | head -1)"
+          if [ -z "$wasc" ]; then
+            echo "::error::no .wasc found in the downloaded artifacts"
+            exit 1
+          fi
+          echo "WASC_PATH=$wasc" >> "$GITHUB_ENV"
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "OpenTyrian ${{ github.ref_name }}"
+          body: |
+            OpenTyrian wasmcart cart (.wasc).
+
+            Runs on all wasmcart hosts: browser, Node.js, wasmcart-native, and RetroArch.
+            ES 3.0 renderer — no GL translation layers needed.
+          files: ${{ env.WASC_PATH }}
