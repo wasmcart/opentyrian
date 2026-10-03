@@ -103,7 +103,7 @@ static void set_key(int sc, bool down)
 static void apply_pad_to_keys(void)
 {
 	const wc_pad_t *p = &pads[0];
-	const uint16_t b = p->buttons;
+	const uint32_t b = p->buttons;
 
 	/* Stick doubles as the d-pad past a deadzone, so either input works. */
 	const int16_t dz = 8000;

@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 // ABI version
-#define WC_ABI_VERSION 3
+#define WC_ABI_VERSION 4
 
 // Button bitmask
 #define WC_BTN_A       (1 << 0)
@@ -21,19 +21,59 @@
 #define WC_BTN_RIGHT   (1 << 11)
 #define WC_BTN_L3      (1 << 12)
 #define WC_BTN_R3      (1 << 13)
+// ABI v4 additions, completing parity with SDL2's controller button set (and
+// libretro's, which mirrors it). Bits 0-13 above keep the meanings they have
+// always had. A pad that lacks one of these simply never sets the bit, the
+// same way a desktop never fills the nine touch slots -- so a cart may read
+// them unconditionally.
+#define WC_BTN_GUIDE    (1 << 14)  // the centre/home/logo button
+#define WC_BTN_MISC1    (1 << 15)  // share/capture/microphone, varies by pad
+#define WC_BTN_PADDLE1  (1 << 16)  // upper right paddle (Elite/Pro layouts)
+#define WC_BTN_PADDLE2  (1 << 17)  // upper left paddle
+#define WC_BTN_PADDLE3  (1 << 18)  // lower right paddle
+#define WC_BTN_PADDLE4  (1 << 19)  // lower left paddle
+#define WC_BTN_TOUCHPAD (1 << 20)  // clicking the touchpad itself (DualShock)
+// Bits 21-31 are reserved. The field is u32 so this list can grow without
+// another breaking change; a cart must not assign its own meaning to them.
 
-// Pad struct (16 bytes — must match host PAD_SIZE)
+// Full travel on a trigger, matching SDL2 and libretro.
+#define WC_TRIGGER_MAX      32767
+// Where a runtime presenting triggers as digital buttons should call them
+// pressed. Deliberately low rather than half travel: a pad resting slightly
+// off zero would sit near a halfway line and flicker, and the browser's
+// Gamepad API reports pressed well before half travel too. A cart reading the
+// analog value directly should pick its own threshold.
+#define WC_TRIGGER_PRESSED  3277   /* ~10% of full travel */
+
+// Pad struct (20 bytes — must match host PAD_SIZE)
+//
+// EVERY ANALOG AXIS IS int16, TRIGGERS INCLUDED (ABI v4). Sticks are
+// -32768..32767 and triggers are 0..32767, which is bit-for-bit what SDL2
+// and libretro already report, so a native host assigns the value through
+// with no arithmetic at all. Triggers were a uint8 through ABI v3, and that
+// one inconsistency caused three separate host bugs, because every host had
+// to remember that one axis was a different width from the others.
+//
+// The static assert is the point. A comment cannot hold a layout: this
+// struct is read at offsets the host writes, and the version this one
+// replaced claimed "16 bytes" in a comment while compiling to FOURTEEN.
 typedef struct {
-    uint16_t buttons;
+    uint32_t buttons;        // WC_BTN_* bitmask; bits 21-31 reserved
     int16_t  left_x;
     int16_t  left_y;
     int16_t  right_x;
     int16_t  right_y;
-    uint8_t  left_trigger;
-    uint8_t  right_trigger;
+    int16_t  left_trigger;   // 0..32767, never negative
+    int16_t  right_trigger;  // 0..32767, never negative
     uint8_t  connected;
     uint8_t  _pad[3];
 } wc_pad_t;
+
+#ifdef __cplusplus
+static_assert(sizeof(wc_pad_t) == 20, "wc_pad_t must be exactly 20 bytes (ABI v4)");
+#else
+_Static_assert(sizeof(wc_pad_t) == 20, "wc_pad_t must be exactly 20 bytes (ABI v4)");
+#endif
 
 // Time struct (20 bytes, 8-byte aligned)
 //
