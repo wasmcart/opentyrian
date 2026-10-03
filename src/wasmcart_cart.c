@@ -207,6 +207,8 @@ WC_EXPORT wc_info_t *wc_get_info(void)
 	 *
 	 * S16 audio: WC_FLAG_AUDIO_F32 deliberately NOT set. */
 	info.flags = WC_FLAG_NET_PEER;
+	/* No wheel: the cart reads no scroll input. 0 tells the host not to write one. */
+	info.wheel_ptr = 0;
 	return &info;
 }
 
